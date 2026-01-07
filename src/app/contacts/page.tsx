@@ -47,12 +47,86 @@ import {
   Phone,
   Mail,
   Globe,
+  StickyNote,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useContactsStore } from "@/store/contacts";
 import { Contact, ContactStatus } from "@/types";
 import { timeAgo, truncate } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { getUniqueSharedBy } from "@/lib/db";
+
+// Notes Modal Component
+function NotesModal({
+  contact,
+  open,
+  onClose,
+  onSave,
+}: {
+  contact: Contact | null;
+  open: boolean;
+  onClose: () => void;
+  onSave: (notes: string) => void;
+}) {
+  const [notes, setNotes] = useState(contact?.parsedContext.notes || "");
+
+  useEffect(() => {
+    if (contact) {
+      setNotes(contact.parsedContext.notes || "");
+    }
+  }, [contact]);
+
+  if (!contact) return null;
+
+  const displayName = getContactDisplayName(contact);
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base">Notes for {displayName}</DialogTitle>
+        </DialogHeader>
+        <div className="py-2">
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add notes about this contact..."
+            className="min-h-[150px] text-sm"
+          />
+          {contact.rawContext && (
+            <div className="mt-3">
+              <p className="text-xs font-medium text-muted-foreground mb-1">Original Context:</p>
+              <div className="text-xs text-muted-foreground bg-muted p-2 rounded max-h-[100px] overflow-y-auto whitespace-pre-wrap">
+                {contact.rawContext}
+              </div>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              onSave(notes);
+              onClose();
+            }}
+          >
+            Save Notes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const STATUS_OPTIONS: { value: ContactStatus | "all"; label: string }[] = [
   { value: "all", label: "All Statuses" },
@@ -89,7 +163,19 @@ export default function ContactsPage() {
   } = useContactsStore();
 
   const [senders, setSenders] = useState<string[]>([]);
+  const [notesModalContact, setNotesModalContact] = useState<Contact | null>(null);
   const filteredContacts = getFilteredContacts();
+
+  const handleSaveNotes = async (notes: string) => {
+    if (!notesModalContact) return;
+    await updateContact(notesModalContact.id, {
+      parsedContext: {
+        ...notesModalContact.parsedContext,
+        notes,
+      },
+    });
+    toast.success("Notes saved");
+  };
 
   useEffect(() => {
     loadContacts();
@@ -121,6 +207,12 @@ export default function ContactsPage() {
 
   return (
     <TooltipProvider>
+      <NotesModal
+        contact={notesModalContact}
+        open={!!notesModalContact}
+        onClose={() => setNotesModalContact(null)}
+        onSave={handleSaveNotes}
+      />
       <AppShell
         title="Contacts"
         description={`${filteredContacts.length} contacts`}
@@ -270,6 +362,7 @@ export default function ContactsPage() {
                   onToggleSelect={() => toggleSelected(contact.id)}
                   onStatusChange={handleStatusChange}
                   onDelete={handleDelete}
+                  onNotesClick={setNotesModalContact}
                 />
               ))}
             </div>
@@ -309,6 +402,7 @@ export default function ContactsPage() {
                       onToggleSelect={() => toggleSelected(contact.id)}
                       onStatusChange={handleStatusChange}
                       onDelete={handleDelete}
+                      onNotesClick={setNotesModalContact}
                     />
                   ))}
                 </TableBody>
@@ -327,6 +421,7 @@ interface ContactRowProps {
   onToggleSelect: () => void;
   onStatusChange: (id: string, status: ContactStatus) => void;
   onDelete: (id: string) => void;
+  onNotesClick: (contact: Contact) => void;
 }
 
 // Helper to extract clean name from LinkedIn URL
@@ -388,15 +483,12 @@ function getContactDisplayName(contact: Contact): string {
 }
 
 // Compact quick action buttons - icons with tooltips
-function QuickActions({ contact }: { contact: Contact }) {
+function QuickActions({ contact, onNotesClick }: { contact: Contact; onNotesClick: () => void }) {
   const hasLinkedIn = !!contact.linkedinUrl;
   const hasPhone = !!contact.phone;
   const hasEmail = !!contact.email;
   const hasWebsite = !!contact.website;
-
-  if (!hasLinkedIn && !hasPhone && !hasEmail && !hasWebsite) {
-    return <span className="text-xs text-muted-foreground">-</span>;
-  }
+  const hasNotes = !!contact.parsedContext.notes;
 
   return (
     <div className="flex items-center gap-1">
@@ -463,6 +555,26 @@ function QuickActions({ contact }: { contact: Contact }) {
           <TooltipContent>Website</TooltipContent>
         </Tooltip>
       )}
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onNotesClick();
+            }}
+            className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+              hasNotes
+                ? "bg-yellow-500 text-white hover:bg-yellow-600"
+                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+            }`}
+          >
+            <StickyNote className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{hasNotes ? "View/Edit Notes" : "Add Notes"}</TooltipContent>
+      </Tooltip>
     </div>
   );
 }
@@ -519,6 +631,7 @@ function MobileContactCard({
   onToggleSelect,
   onStatusChange,
   onDelete,
+  onNotesClick,
 }: ContactRowProps) {
   const displayName = getContactDisplayName(contact);
 
@@ -540,7 +653,7 @@ function MobileContactCard({
                 </span>
               )}
             </Link>
-            <QuickActions contact={contact} />
+            <QuickActions contact={contact} onNotesClick={() => onNotesClick(contact)} />
           </div>
 
           <div className="flex items-center gap-2 mt-2">
@@ -575,6 +688,7 @@ function DesktopContactRow({
   onToggleSelect,
   onStatusChange,
   onDelete,
+  onNotesClick,
 }: ContactRowProps) {
   const displayName = getContactDisplayName(contact);
 
@@ -589,7 +703,7 @@ function DesktopContactRow({
         </Link>
       </TableCell>
       <TableCell>
-        <QuickActions contact={contact} />
+        <QuickActions contact={contact} onNotesClick={() => onNotesClick(contact)} />
       </TableCell>
       <TableCell className="text-xs text-muted-foreground max-w-[100px] truncate">
         {contact.sharedBy}

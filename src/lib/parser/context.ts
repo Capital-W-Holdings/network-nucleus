@@ -197,9 +197,59 @@ function detectUrgency(text: string): UrgencyLevel {
   return "warm";
 }
 
+// Extract meaningful notes from context (messages after the link)
+function extractNotes(contextMessages: WhatsAppMessage[], linkMessageIndex: number): string {
+  const notes: string[] = [];
+
+  // Get messages after the link (follow-up context)
+  const followUpMessages = contextMessages.slice(linkMessageIndex + 1);
+
+  for (const msg of followUpMessages) {
+    const content = msg.content.trim();
+
+    // Skip very short messages, media placeholders, and links
+    if (content.length < 5) continue;
+    if (/^<.*omitted>$/i.test(content)) continue;
+    if (/^https?:\/\//i.test(content)) continue;
+
+    // Skip messages that are just reactions or acknowledgements
+    if (/^(ok|okay|thanks|thank you|got it|nice|cool|great|👍|🙏|✅)$/i.test(content)) continue;
+
+    // This looks like a meaningful note about the person
+    notes.push(content);
+  }
+
+  // Also check the message with the link for inline notes
+  if (linkMessageIndex >= 0 && linkMessageIndex < contextMessages.length) {
+    const linkMsg = contextMessages[linkMessageIndex];
+    // Extract text that comes after the URL
+    const afterUrl = linkMsg.content.replace(/https?:\/\/[^\s]+/g, "").trim();
+    if (afterUrl.length > 10) {
+      notes.unshift(afterUrl); // Add at beginning since it's from the same message
+    }
+  }
+
+  // Check messages before the link for context
+  const beforeMessages = contextMessages.slice(0, linkMessageIndex);
+  for (const msg of beforeMessages.slice(-2)) { // Last 2 messages before link
+    const content = msg.content.trim();
+    if (content.length > 15 && !content.includes("http")) {
+      // Looks like context about who they're sharing
+      notes.unshift(content);
+    }
+  }
+
+  return notes.slice(0, 5).join("\n"); // Limit to 5 notes
+}
+
 export function analyzeContext(contextMessages: WhatsAppMessage[]): ParsedContext {
   // Combine all context messages into one text block
   const contextText = contextMessages.map((m) => m.content).join("\n");
+
+  // Find which message contains the link (usually the middle one)
+  const linkMessageIndex = contextMessages.findIndex(m =>
+    /linkedin\.com|https?:\/\//.test(m.content)
+  );
 
   // Extract relationship
   const relationships = extractAllMatchingValues(contextText, RELATIONSHIP_PATTERNS);
@@ -219,11 +269,8 @@ export function analyzeContext(contextMessages: WhatsAppMessage[]): ParsedContex
   // Detect urgency
   const urgency = detectUrgency(contextText);
 
-  // Build notes from additional context
-  const notes = [
-    ...reasons.slice(1), // Additional reasons beyond the first
-    ...sectors.slice(3), // Additional sectors beyond the first few
-  ].join("; ");
+  // Extract notes from context messages
+  const notes = extractNotes(contextMessages, linkMessageIndex >= 0 ? linkMessageIndex : Math.floor(contextMessages.length / 2));
 
   return {
     relationship,
