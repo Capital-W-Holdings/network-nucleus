@@ -275,11 +275,11 @@ export default function ContactsPage() {
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden lg:block rounded-md border">
-              <Table>
+            <div className="hidden lg:block rounded-md border overflow-x-auto">
+              <Table className="w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[40px]">
+                    <TableHead className="w-8">
                       <Checkbox
                         checked={allSelected}
                         onCheckedChange={(checked) => {
@@ -291,13 +291,13 @@ export default function ContactsPage() {
                         }}
                       />
                     </TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Quick Actions</TableHead>
-                    <TableHead>Shared By</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Urgency</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="w-[50px]" />
+                    <TableHead className="text-xs">Name</TableHead>
+                    <TableHead className="text-xs">Actions</TableHead>
+                    <TableHead className="text-xs">From</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Urgency</TableHead>
+                    <TableHead className="text-xs">Date</TableHead>
+                    <TableHead className="w-8" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -333,91 +333,135 @@ interface ContactRowProps {
 function getLinkedInName(url: string): string {
   const match = url.match(/linkedin\.com\/(?:in|company)\/([a-zA-Z0-9_-]+)/i);
   if (match) {
-    return match[1]
+    const slug = match[1];
+    // Filter out slugs that are mostly numbers or look like IDs
+    if (/^\d+$/.test(slug) || /^[a-z]{1,2}\d{5,}$/i.test(slug)) {
+      return "";
+    }
+    // Convert kebab-case to title case, filter out numbers
+    return slug
       .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
+      .filter(word => !/^\d+$/.test(word)) // Remove pure number segments
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ")
+      .trim();
   }
   return "";
 }
 
 // Get display name for contact
 function getContactDisplayName(contact: Contact): string {
-  if (contact.name) return contact.name;
+  // Priority 1: Explicit name
+  if (contact.name && contact.name.trim()) return contact.name;
+
+  // Priority 2: LinkedIn URL parsed name
   if (contact.linkedinUrl) {
     const linkedInName = getLinkedInName(contact.linkedinUrl);
-    if (linkedInName) return linkedInName;
+    if (linkedInName && linkedInName.length > 2) return linkedInName;
   }
+
+  // Priority 3: Email name part
   if (contact.email) {
-    const emailName = contact.email.split("@")[0].replace(/[._]/g, " ");
-    return emailName.charAt(0).toUpperCase() + emailName.slice(1);
+    const emailPart = contact.email.split("@")[0];
+    // Clean up email prefix
+    const cleanName = emailPart
+      .replace(/[._]/g, " ")
+      .replace(/\d+/g, "") // Remove numbers
+      .trim();
+    if (cleanName.length > 2) {
+      return cleanName
+        .split(" ")
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+    }
   }
-  return contact.rawValue || "Unknown Contact";
+
+  // Priority 4: Phone number
+  if (contact.phone) return contact.phone;
+
+  // Priority 5: Raw value (truncated)
+  if (contact.rawValue) {
+    return truncate(contact.rawValue, 30);
+  }
+
+  return "Unknown";
 }
 
-// Quick action buttons component with labels
-function QuickActions({ contact, size = "default" }: { contact: Contact; size?: "default" | "sm" }) {
+// Compact quick action buttons - icons with tooltips
+function QuickActions({ contact }: { contact: Contact }) {
   const hasLinkedIn = !!contact.linkedinUrl;
   const hasPhone = !!contact.phone;
   const hasEmail = !!contact.email;
   const hasWebsite = !!contact.website;
 
   if (!hasLinkedIn && !hasPhone && !hasEmail && !hasWebsite) {
-    return <span className="text-xs text-muted-foreground">No contact info</span>;
+    return <span className="text-xs text-muted-foreground">-</span>;
   }
 
-  const buttonClass = size === "sm"
-    ? "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-    : "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors";
-
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex items-center gap-1">
       {hasLinkedIn && (
-        <a
-          href={contact.linkedinUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${buttonClass} bg-[#0A66C2] text-white hover:bg-[#004182]`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Linkedin className="h-3.5 w-3.5" />
-          LinkedIn
-        </a>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={contact.linkedinUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-7 h-7 rounded bg-[#0A66C2] text-white hover:bg-[#004182] transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Linkedin className="h-3.5 w-3.5" />
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>LinkedIn</TooltipContent>
+        </Tooltip>
       )}
 
       {hasPhone && (
-        <a
-          href={`tel:${contact.phone}`}
-          className={`${buttonClass} bg-green-600 text-white hover:bg-green-700`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Phone className="h-3.5 w-3.5" />
-          {contact.phone}
-        </a>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={`tel:${contact.phone}`}
+              className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Phone className="h-3.5 w-3.5" />
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>{contact.phone}</TooltipContent>
+        </Tooltip>
       )}
 
       {hasEmail && (
-        <a
-          href={`mailto:${contact.email}`}
-          className={`${buttonClass} bg-orange-500 text-white hover:bg-orange-600`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Mail className="h-3.5 w-3.5" />
-          Email
-        </a>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={`mailto:${contact.email}`}
+              className="inline-flex items-center justify-center w-7 h-7 rounded bg-orange-500 text-white hover:bg-orange-600 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Mail className="h-3.5 w-3.5" />
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>{contact.email}</TooltipContent>
+        </Tooltip>
       )}
 
       {hasWebsite && (
-        <a
-          href={contact.website}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${buttonClass} bg-gray-600 text-white hover:bg-gray-700`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Globe className="h-3.5 w-3.5" />
-          Website
-        </a>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={contact.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-500 text-white hover:bg-gray-600 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Globe className="h-3.5 w-3.5" />
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>Website</TooltipContent>
+        </Tooltip>
       )}
     </div>
   );
@@ -480,35 +524,26 @@ function MobileContactCard({
 
   return (
     <div className="border rounded-lg p-3 bg-card">
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2">
         <Checkbox
           checked={isSelected}
           onCheckedChange={onToggleSelect}
-          className="mt-1"
+          className="mt-0.5"
         />
         <div className="flex-1 min-w-0">
-          <Link href={`/contacts/${contact.id}`} className="block">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold text-base truncate">
-                {displayName}
-              </span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </div>
-            {contact.company && (
-              <p className="text-sm text-muted-foreground truncate">
-                {contact.company}
-                {contact.title && ` · ${contact.title}`}
-              </p>
-            )}
-            <ContextInfo contact={contact} compact />
-          </Link>
-
-          {/* Quick Actions - prominent on mobile */}
-          <div className="mt-3">
-            <QuickActions contact={contact} size="sm" />
+          <div className="flex items-start justify-between gap-2">
+            <Link href={`/contacts/${contact.id}`} className="flex-1 min-w-0">
+              <span className="font-medium text-sm block truncate">{displayName}</span>
+              {contact.company && (
+                <span className="text-xs text-muted-foreground block truncate">
+                  {contact.company}
+                </span>
+              )}
+            </Link>
+            <QuickActions contact={contact} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mt-3">
+          <div className="flex items-center gap-2 mt-2">
             <Badge
               variant={
                 contact.parsedContext.urgency === "hot"
@@ -517,53 +552,18 @@ function MobileContactCard({
                   ? "warm"
                   : "cold"
               }
-              className="text-xs"
+              className="text-[10px] px-1.5"
             >
               {contact.parsedContext.urgency}
             </Badge>
-            <Select
-              value={contact.status}
-              onValueChange={(value) =>
-                onStatusChange(contact.id, value as ContactStatus)
-              }
-            >
-              <SelectTrigger className="h-6 w-auto px-2 text-xs">
-                <Badge variant={contact.status as ContactStatus} className="text-xs">
-                  {contact.status.replace("_", " ")}
-                </Badge>
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.filter((s) => s.value !== "all").map((status) => (
-                  <SelectItem key={status.value} value={status.value}>
-                    {status.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-            <span>From {contact.sharedBy}</span>
-            <span>{timeAgo(contact.sharedDate)}</span>
+            <Badge variant={contact.status as ContactStatus} className="text-[10px] px-1.5">
+              {contact.status.replace("_", " ")}
+            </Badge>
+            <span className="text-[10px] text-muted-foreground ml-auto">
+              {timeAgo(contact.sharedDate)}
+            </span>
           </div>
         </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => onDelete(contact.id)}
-              className="text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </div>
   );
@@ -580,48 +580,24 @@ function DesktopContactRow({
 
   return (
     <TableRow data-state={isSelected ? "selected" : undefined}>
-      <TableCell>
+      <TableCell className="w-8 pr-0">
         <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} />
       </TableCell>
-      <TableCell className="min-w-[200px]">
-        <Link
-          href={`/contacts/${contact.id}`}
-          className="block hover:underline"
-        >
-          <span className="font-semibold text-base">{displayName}</span>
-          {contact.company && (
-            <p className="text-sm text-muted-foreground">
-              {contact.company}
-              {contact.title && ` · ${contact.title}`}
-            </p>
-          )}
-          <ContextInfo contact={contact} compact />
+      <TableCell>
+        <Link href={`/contacts/${contact.id}`} className="hover:underline">
+          <span className="font-medium text-sm">{displayName}</span>
         </Link>
       </TableCell>
-      <TableCell className="min-w-[280px]">
+      <TableCell>
         <QuickActions contact={contact} />
       </TableCell>
-      <TableCell className="text-sm">{contact.sharedBy}</TableCell>
+      <TableCell className="text-xs text-muted-foreground max-w-[100px] truncate">
+        {contact.sharedBy}
+      </TableCell>
       <TableCell>
-        <Select
-          value={contact.status}
-          onValueChange={(value) =>
-            onStatusChange(contact.id, value as ContactStatus)
-          }
-        >
-          <SelectTrigger className="h-7 w-[110px]">
-            <Badge variant={contact.status as ContactStatus}>
-              {contact.status.replace("_", " ")}
-            </Badge>
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.filter((s) => s.value !== "all").map((status) => (
-              <SelectItem key={status.value} value={status.value}>
-                {status.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Badge variant={contact.status as ContactStatus} className="text-[10px]">
+          {contact.status.replace("_", " ")}
+        </Badge>
       </TableCell>
       <TableCell>
         <Badge
@@ -632,17 +608,18 @@ function DesktopContactRow({
               ? "warm"
               : "cold"
           }
+          className="text-[10px]"
         >
           {contact.parsedContext.urgency}
         </Badge>
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
+      <TableCell className="text-xs text-muted-foreground">
         {timeAgo(contact.sharedDate)}
       </TableCell>
-      <TableCell>
+      <TableCell className="w-8 pl-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button variant="ghost" size="icon" className="h-7 w-7">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
