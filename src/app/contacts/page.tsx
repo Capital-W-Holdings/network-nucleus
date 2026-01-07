@@ -329,85 +329,142 @@ interface ContactRowProps {
   onDelete: (id: string) => void;
 }
 
-// Quick action buttons component
-function QuickActions({ contact, size = "default" }: { contact: Contact; size?: "default" | "sm" }) {
-  const iconSize = size === "sm" ? "h-4 w-4" : "h-5 w-5";
-  const buttonSize = size === "sm" ? "h-8 w-8" : "h-9 w-9";
+// Helper to extract clean name from LinkedIn URL
+function getLinkedInName(url: string): string {
+  const match = url.match(/linkedin\.com\/(?:in|company)\/([a-zA-Z0-9_-]+)/i);
+  if (match) {
+    return match[1]
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+  return "";
+}
 
+// Get display name for contact
+function getContactDisplayName(contact: Contact): string {
+  if (contact.name) return contact.name;
+  if (contact.linkedinUrl) {
+    const linkedInName = getLinkedInName(contact.linkedinUrl);
+    if (linkedInName) return linkedInName;
+  }
+  if (contact.email) {
+    const emailName = contact.email.split("@")[0].replace(/[._]/g, " ");
+    return emailName.charAt(0).toUpperCase() + emailName.slice(1);
+  }
+  return contact.rawValue || "Unknown Contact";
+}
+
+// Quick action buttons component with labels
+function QuickActions({ contact, size = "default" }: { contact: Contact; size?: "default" | "sm" }) {
   const hasLinkedIn = !!contact.linkedinUrl;
   const hasPhone = !!contact.phone;
   const hasEmail = !!contact.email;
   const hasWebsite = !!contact.website;
 
   if (!hasLinkedIn && !hasPhone && !hasEmail && !hasWebsite) {
-    return <span className="text-xs text-muted-foreground">-</span>;
+    return <span className="text-xs text-muted-foreground">No contact info</span>;
   }
 
+  const buttonClass = size === "sm"
+    ? "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+    : "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors";
+
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1.5">
       {hasLinkedIn && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <a
-              href={contact.linkedinUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`inline-flex items-center justify-center rounded-md ${buttonSize} bg-[#0A66C2] text-white hover:bg-[#004182] transition-colors`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Linkedin className={iconSize} />
-            </a>
-          </TooltipTrigger>
-          <TooltipContent>Open LinkedIn</TooltipContent>
-        </Tooltip>
+        <a
+          href={contact.linkedinUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${buttonClass} bg-[#0A66C2] text-white hover:bg-[#004182]`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Linkedin className="h-3.5 w-3.5" />
+          LinkedIn
+        </a>
       )}
 
       {hasPhone && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <a
-              href={`tel:${contact.phone}`}
-              className={`inline-flex items-center justify-center rounded-md ${buttonSize} bg-green-600 text-white hover:bg-green-700 transition-colors`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Phone className={iconSize} />
-            </a>
-          </TooltipTrigger>
-          <TooltipContent>Call {contact.phone}</TooltipContent>
-        </Tooltip>
+        <a
+          href={`tel:${contact.phone}`}
+          className={`${buttonClass} bg-green-600 text-white hover:bg-green-700`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Phone className="h-3.5 w-3.5" />
+          {contact.phone}
+        </a>
       )}
 
       {hasEmail && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <a
-              href={`mailto:${contact.email}`}
-              className={`inline-flex items-center justify-center rounded-md ${buttonSize} bg-orange-500 text-white hover:bg-orange-600 transition-colors`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Mail className={iconSize} />
-            </a>
-          </TooltipTrigger>
-          <TooltipContent>Email {contact.email}</TooltipContent>
-        </Tooltip>
+        <a
+          href={`mailto:${contact.email}`}
+          className={`${buttonClass} bg-orange-500 text-white hover:bg-orange-600`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Mail className="h-3.5 w-3.5" />
+          Email
+        </a>
       )}
 
       {hasWebsite && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <a
-              href={contact.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`inline-flex items-center justify-center rounded-md ${buttonSize} bg-gray-600 text-white hover:bg-gray-700 transition-colors`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Globe className={iconSize} />
-            </a>
-          </TooltipTrigger>
-          <TooltipContent>Open Website</TooltipContent>
-        </Tooltip>
+        <a
+          href={contact.website}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${buttonClass} bg-gray-600 text-white hover:bg-gray-700`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Globe className="h-3.5 w-3.5" />
+          Website
+        </a>
       )}
+    </div>
+  );
+}
+
+// Context info badges
+function ContextInfo({ contact, compact = false }: { contact: Contact; compact?: boolean }) {
+  const ctx = contact.parsedContext;
+  const items: { label: string; value: string; color: string }[] = [];
+
+  if (ctx.relationship && ctx.relationship !== "unknown") {
+    items.push({ label: "Relationship", value: ctx.relationship, color: "bg-blue-100 text-blue-800" });
+  }
+  if (ctx.reason && ctx.reason !== "unknown") {
+    items.push({ label: "Reason", value: ctx.reason, color: "bg-purple-100 text-purple-800" });
+  }
+  if (ctx.sector && ctx.sector !== "unknown") {
+    items.push({ label: "Sector", value: ctx.sector, color: "bg-emerald-100 text-emerald-800" });
+  }
+  if (ctx.dealSize && ctx.dealSize !== "unknown") {
+    items.push({ label: "Deal", value: ctx.dealSize, color: "bg-amber-100 text-amber-800" });
+  }
+
+  if (items.length === 0) return null;
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {items.slice(0, 2).map((item) => (
+          <span key={item.label} className={`text-[10px] px-1.5 py-0.5 rounded ${item.color}`}>
+            {item.value}
+          </span>
+        ))}
+        {items.length > 2 && (
+          <span className="text-[10px] text-muted-foreground">+{items.length - 2} more</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {items.map((item) => (
+        <span key={item.label} className={`text-xs px-2 py-0.5 rounded ${item.color}`}>
+          {item.label}: {item.value}
+        </span>
+      ))}
     </div>
   );
 }
@@ -419,13 +476,7 @@ function MobileContactCard({
   onStatusChange,
   onDelete,
 }: ContactRowProps) {
-  const displayValue =
-    contact.name ||
-    contact.linkedinUrl ||
-    contact.email ||
-    contact.phone ||
-    contact.website ||
-    contact.rawValue;
+  const displayName = getContactDisplayName(contact);
 
   return (
     <div className="border rounded-lg p-3 bg-card">
@@ -438,21 +489,22 @@ function MobileContactCard({
         <div className="flex-1 min-w-0">
           <Link href={`/contacts/${contact.id}`} className="block">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium truncate">
-                {truncate(displayValue, 30)}
+              <span className="font-semibold text-base truncate">
+                {displayName}
               </span>
               <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             </div>
             {contact.company && (
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-sm text-muted-foreground truncate">
                 {contact.company}
                 {contact.title && ` · ${contact.title}`}
               </p>
             )}
+            <ContextInfo contact={contact} compact />
           </Link>
 
           {/* Quick Actions - prominent on mobile */}
-          <div className="flex items-center gap-2 mt-3">
+          <div className="mt-3">
             <QuickActions contact={contact} size="sm" />
           </div>
 
@@ -524,39 +576,29 @@ function DesktopContactRow({
   onStatusChange,
   onDelete,
 }: ContactRowProps) {
-  const displayValue =
-    contact.name ||
-    contact.linkedinUrl ||
-    contact.email ||
-    contact.phone ||
-    contact.website ||
-    contact.rawValue;
+  const displayName = getContactDisplayName(contact);
 
   return (
     <TableRow data-state={isSelected ? "selected" : undefined}>
       <TableCell>
         <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} />
       </TableCell>
-      <TableCell>
+      <TableCell className="min-w-[200px]">
         <Link
           href={`/contacts/${contact.id}`}
-          className="flex flex-col hover:underline"
+          className="block hover:underline"
         >
-          <span className="font-medium">{truncate(displayValue, 40)}</span>
-          {contact.sourceType !== "linkedin" && contact.name && (
-            <span className="text-xs text-muted-foreground">
-              {contact.sourceType}
-            </span>
-          )}
+          <span className="font-semibold text-base">{displayName}</span>
           {contact.company && (
-            <span className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {contact.company}
               {contact.title && ` · ${contact.title}`}
-            </span>
+            </p>
           )}
+          <ContextInfo contact={contact} compact />
         </Link>
       </TableCell>
-      <TableCell>
+      <TableCell className="min-w-[280px]">
         <QuickActions contact={contact} />
       </TableCell>
       <TableCell className="text-sm">{contact.sharedBy}</TableCell>
