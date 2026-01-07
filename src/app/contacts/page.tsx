@@ -30,19 +30,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Search,
   MoreHorizontal,
-  ExternalLink,
-  Copy,
   Trash2,
   Download,
   Users,
   ChevronDown,
   ChevronRight,
+  Linkedin,
+  Phone,
+  Mail,
+  Globe,
 } from "lucide-react";
 import { useContactsStore } from "@/store/contacts";
 import { Contact, ContactStatus } from "@/types";
-import { timeAgo, copyToClipboard, truncate } from "@/lib/utils";
+import { timeAgo, truncate } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { getUniqueSharedBy } from "@/lib/db";
 
@@ -88,11 +96,6 @@ export default function ContactsPage() {
     getUniqueSharedBy().then(setSenders);
   }, [loadContacts]);
 
-  const handleCopyLink = async (url: string) => {
-    await copyToClipboard(url);
-    toast.success("Copied to clipboard");
-  };
-
   const handleStatusChange = async (id: string, status: ContactStatus) => {
     await updateContact(id, { status });
     toast.success("Status updated");
@@ -117,204 +120,204 @@ export default function ContactsPage() {
     filteredContacts.every((c) => selectedIds.has(c.id));
 
   return (
-    <AppShell
-      title="Contacts"
-      description={`${filteredContacts.length} contacts`}
-      actions={
-        <div className="flex items-center gap-2">
-          {selectedIds.size > 0 ? (
-            <>
-              <span className="text-xs text-muted-foreground hidden sm:inline">
-                {selectedIds.size} selected
-              </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <span className="hidden sm:inline">Bulk Actions</span>
-                    <span className="sm:hidden">Actions</span>
-                    <ChevronDown className="ml-1 h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {STATUS_OPTIONS.filter((s) => s.value !== "all").map(
-                    (status) => (
-                      <DropdownMenuItem
-                        key={status.value}
-                        onClick={() =>
-                          bulkUpdateStatus(status.value as ContactStatus)
-                        }
-                      >
-                        Set as {status.label}
-                      </DropdownMenuItem>
-                    )
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={handleBulkDelete}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Selected
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          ) : (
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/">
-                <Download className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Import</span>
-              </Link>
-            </Button>
-          )}
-        </div>
-      }
-    >
-      {/* Filters */}
-      <div className="space-y-3 mb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search contacts..."
-            value={filters.search}
-            onChange={(e) => setFilter("search", e.target.value)}
-            className="pl-9"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Select
-            value={filters.status}
-            onValueChange={(value) => setFilter("status", value)}
-          >
-            <SelectTrigger className="w-[130px] h-9 text-xs">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={filters.urgency}
-            onValueChange={(value) => setFilter("urgency", value)}
-          >
-            <SelectTrigger className="w-[110px] h-9 text-xs">
-              <SelectValue placeholder="Urgency" />
-            </SelectTrigger>
-            <SelectContent>
-              {URGENCY_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={filters.sharedBy}
-            onValueChange={(value) => setFilter("sharedBy", value)}
-          >
-            <SelectTrigger className="w-[130px] h-9 text-xs">
-              <SelectValue placeholder="Shared By" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Senders</SelectItem>
-              {senders.map((sender) => (
-                <SelectItem key={sender} value={sender}>
-                  {truncate(sender, 20)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Content */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
-      ) : filteredContacts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Users className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">No contacts found</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            {contacts.length === 0
-              ? "Import a WhatsApp chat to get started"
-              : "Try adjusting your filters"}
-          </p>
-          {contacts.length === 0 && (
-            <Button asChild>
-              <Link href="/">Import Chat</Link>
-            </Button>
-          )}
-        </div>
-      ) : (
-        <>
-          {/* Mobile Card View */}
-          <div className="lg:hidden space-y-3">
-            {filteredContacts.map((contact) => (
-              <MobileContactCard
-                key={contact.id}
-                contact={contact}
-                isSelected={selectedIds.has(contact.id)}
-                onToggleSelect={() => toggleSelected(contact.id)}
-                onStatusChange={handleStatusChange}
-                onCopyLink={handleCopyLink}
-                onDelete={handleDelete}
-              />
-            ))}
+    <TooltipProvider>
+      <AppShell
+        title="Contacts"
+        description={`${filteredContacts.length} contacts`}
+        actions={
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 ? (
+              <>
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  {selectedIds.size} selected
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <span className="hidden sm:inline">Bulk Actions</span>
+                      <span className="sm:hidden">Actions</span>
+                      <ChevronDown className="ml-1 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {STATUS_OPTIONS.filter((s) => s.value !== "all").map(
+                      (status) => (
+                        <DropdownMenuItem
+                          key={status.value}
+                          onClick={() =>
+                            bulkUpdateStatus(status.value as ContactStatus)
+                          }
+                        >
+                          Set as {status.label}
+                        </DropdownMenuItem>
+                      )
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleBulkDelete}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Selected
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/">
+                  <Download className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Import</span>
+                </Link>
+              </Button>
+            )}
+          </div>
+        }
+      >
+        {/* Filters */}
+        <div className="space-y-3 mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search contacts..."
+              value={filters.search}
+              onChange={(e) => setFilter("search", e.target.value)}
+              className="pl-9"
+            />
           </div>
 
-          {/* Desktop Table View */}
-          <div className="hidden lg:block rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]">
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          selectAll();
-                        } else {
-                          clearSelection();
-                        }
-                      }}
-                    />
-                  </TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Shared By</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Urgency</TableHead>
-                  <TableHead>Context</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-[50px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredContacts.map((contact) => (
-                  <DesktopContactRow
-                    key={contact.id}
-                    contact={contact}
-                    isSelected={selectedIds.has(contact.id)}
-                    onToggleSelect={() => toggleSelected(contact.id)}
-                    onStatusChange={handleStatusChange}
-                    onCopyLink={handleCopyLink}
-                    onDelete={handleDelete}
-                  />
+          <div className="flex flex-wrap gap-2">
+            <Select
+              value={filters.status}
+              onValueChange={(value) => setFilter("status", value)}
+            >
+              <SelectTrigger className="w-[130px] h-9 text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
                 ))}
-              </TableBody>
-            </Table>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.urgency}
+              onValueChange={(value) => setFilter("urgency", value)}
+            >
+              <SelectTrigger className="w-[110px] h-9 text-xs">
+                <SelectValue placeholder="Urgency" />
+              </SelectTrigger>
+              <SelectContent>
+                {URGENCY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.sharedBy}
+              onValueChange={(value) => setFilter("sharedBy", value)}
+            >
+              <SelectTrigger className="w-[130px] h-9 text-xs">
+                <SelectValue placeholder="Shared By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Senders</SelectItem>
+                {senders.map((sender) => (
+                  <SelectItem key={sender} value={sender}>
+                    {truncate(sender, 20)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </>
-      )}
-    </AppShell>
+        </div>
+
+        {/* Content */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          </div>
+        ) : filteredContacts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Users className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No contacts found</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {contacts.length === 0
+                ? "Import a WhatsApp chat to get started"
+                : "Try adjusting your filters"}
+            </p>
+            {contacts.length === 0 && (
+              <Button asChild>
+                <Link href="/">Import Chat</Link>
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-3">
+              {filteredContacts.map((contact) => (
+                <MobileContactCard
+                  key={contact.id}
+                  contact={contact}
+                  isSelected={selectedIds.has(contact.id)}
+                  onToggleSelect={() => toggleSelected(contact.id)}
+                  onStatusChange={handleStatusChange}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden lg:block rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            selectAll();
+                          } else {
+                            clearSelection();
+                          }
+                        }}
+                      />
+                    </TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Quick Actions</TableHead>
+                    <TableHead>Shared By</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Urgency</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="w-[50px]" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredContacts.map((contact) => (
+                    <DesktopContactRow
+                      key={contact.id}
+                      contact={contact}
+                      isSelected={selectedIds.has(contact.id)}
+                      onToggleSelect={() => toggleSelected(contact.id)}
+                      onStatusChange={handleStatusChange}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        )}
+      </AppShell>
+    </TooltipProvider>
   );
 }
 
@@ -323,8 +326,90 @@ interface ContactRowProps {
   isSelected: boolean;
   onToggleSelect: () => void;
   onStatusChange: (id: string, status: ContactStatus) => void;
-  onCopyLink: (url: string) => void;
   onDelete: (id: string) => void;
+}
+
+// Quick action buttons component
+function QuickActions({ contact, size = "default" }: { contact: Contact; size?: "default" | "sm" }) {
+  const iconSize = size === "sm" ? "h-4 w-4" : "h-5 w-5";
+  const buttonSize = size === "sm" ? "h-8 w-8" : "h-9 w-9";
+
+  const hasLinkedIn = !!contact.linkedinUrl;
+  const hasPhone = !!contact.phone;
+  const hasEmail = !!contact.email;
+  const hasWebsite = !!contact.website;
+
+  if (!hasLinkedIn && !hasPhone && !hasEmail && !hasWebsite) {
+    return <span className="text-xs text-muted-foreground">-</span>;
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      {hasLinkedIn && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={contact.linkedinUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center justify-center rounded-md ${buttonSize} bg-[#0A66C2] text-white hover:bg-[#004182] transition-colors`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Linkedin className={iconSize} />
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>Open LinkedIn</TooltipContent>
+        </Tooltip>
+      )}
+
+      {hasPhone && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={`tel:${contact.phone}`}
+              className={`inline-flex items-center justify-center rounded-md ${buttonSize} bg-green-600 text-white hover:bg-green-700 transition-colors`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Phone className={iconSize} />
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>Call {contact.phone}</TooltipContent>
+        </Tooltip>
+      )}
+
+      {hasEmail && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={`mailto:${contact.email}`}
+              className={`inline-flex items-center justify-center rounded-md ${buttonSize} bg-orange-500 text-white hover:bg-orange-600 transition-colors`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Mail className={iconSize} />
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>Email {contact.email}</TooltipContent>
+        </Tooltip>
+      )}
+
+      {hasWebsite && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={contact.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center justify-center rounded-md ${buttonSize} bg-gray-600 text-white hover:bg-gray-700 transition-colors`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Globe className={iconSize} />
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>Open Website</TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  );
 }
 
 function MobileContactCard({
@@ -332,18 +417,10 @@ function MobileContactCard({
   isSelected,
   onToggleSelect,
   onStatusChange,
-  onCopyLink,
   onDelete,
 }: ContactRowProps) {
   const displayValue =
     contact.name ||
-    contact.linkedinUrl ||
-    contact.email ||
-    contact.phone ||
-    contact.website ||
-    contact.rawValue;
-
-  const copyableValue =
     contact.linkedinUrl ||
     contact.email ||
     contact.phone ||
@@ -374,7 +451,12 @@ function MobileContactCard({
             )}
           </Link>
 
-          <div className="flex flex-wrap items-center gap-2 mt-2">
+          {/* Quick Actions - prominent on mobile */}
+          <div className="flex items-center gap-2 mt-3">
+            <QuickActions contact={contact} size="sm" />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-3">
             <Badge
               variant={
                 contact.parsedContext.urgency === "hot"
@@ -421,23 +503,6 @@ function MobileContactCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {contact.linkedinUrl && (
-              <DropdownMenuItem asChild>
-                <a
-                  href={contact.linkedinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open LinkedIn
-                </a>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => onCopyLink(copyableValue)}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copy {contact.sourceType === "linkedin" ? "URL" : contact.sourceType}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => onDelete(contact.id)}
               className="text-destructive"
@@ -457,18 +522,10 @@ function DesktopContactRow({
   isSelected,
   onToggleSelect,
   onStatusChange,
-  onCopyLink,
   onDelete,
 }: ContactRowProps) {
   const displayValue =
     contact.name ||
-    contact.linkedinUrl ||
-    contact.email ||
-    contact.phone ||
-    contact.website ||
-    contact.rawValue;
-
-  const copyableValue =
     contact.linkedinUrl ||
     contact.email ||
     contact.phone ||
@@ -498,6 +555,9 @@ function DesktopContactRow({
             </span>
           )}
         </Link>
+      </TableCell>
+      <TableCell>
+        <QuickActions contact={contact} />
       </TableCell>
       <TableCell className="text-sm">{contact.sharedBy}</TableCell>
       <TableCell>
@@ -534,13 +594,6 @@ function DesktopContactRow({
           {contact.parsedContext.urgency}
         </Badge>
       </TableCell>
-      <TableCell className="max-w-[200px]">
-        <span className="text-sm text-muted-foreground truncate block">
-          {contact.parsedContext.reason ||
-            contact.parsedContext.relationship ||
-            "-"}
-        </span>
-      </TableCell>
       <TableCell className="text-sm text-muted-foreground">
         {timeAgo(contact.sharedDate)}
       </TableCell>
@@ -552,23 +605,6 @@ function DesktopContactRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {contact.linkedinUrl && (
-              <DropdownMenuItem asChild>
-                <a
-                  href={contact.linkedinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open LinkedIn
-                </a>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => onCopyLink(copyableValue)}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copy {contact.sourceType === "linkedin" ? "URL" : contact.sourceType}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => onDelete(contact.id)}
               className="text-destructive"
